@@ -51,7 +51,7 @@ namespace Snapper.PMP
             //meta.json
             PMPMetadata metadata = new PMPMetadata();
             metadata.Name = snapshotName;
-            metadata.Author = $"SnapperFork";
+            metadata.Author = $"Who Knows";
             using(FileStream stream = new FileStream(Path.Combine(workingDirectory, "meta.json"), FileMode.Create))
             {
                 JsonSerializer.Serialize(stream, metadata);

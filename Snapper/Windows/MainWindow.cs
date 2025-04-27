@@ -46,6 +46,7 @@ public partial class MainWindow : Window, IDisposable
         ImGui.SameLine();
         if(ImGui.Button("Revert snapshots"))
         {
+            Logger.Verbose("Reverting All Snapshots");
             this.Plugin.SnapshotManager.RevertAllSnapshots();
         }
 

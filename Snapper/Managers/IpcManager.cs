@@ -20,6 +20,8 @@ using Glamourer.Api.IpcSubscribers;
 using Glamourer.Api.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Dalamud.Utility;
+using static Dalamud.Interface.Utility.Raii.ImRaii;
+using FFXIVClientStructs.FFXIV.Client.System.Input;
 
 namespace Snapper.Managers;
 
@@ -58,8 +60,8 @@ public class IpcManager : IDisposable
     private readonly GetMetaManipulations _penumbraGetGameObjectMetaManipulations;
     private readonly AddTemporaryMod _penumbraAddTemporaryMod;
     private readonly CreateTemporaryCollection _penumbraCreateTemporaryCollection;
-    //private readonly RemoveTemporaryCollection _penumbraRemoveTemporaryCollection;
-    private readonly Penumbra.Api.IpcSubscribers.Legacy.RemoveTemporaryMod _penumbraRemoveTemporaryMod;
+    private readonly DeleteTemporaryCollection _penumbraRemoveTemporaryCollection;
+    private readonly RemoveTemporaryMod _penumbraRemoveTemporaryMod;
     private readonly AssignTemporaryCollection _penumbraAssignTemporaryCollection;
     private readonly ReverseResolvePlayerPath _reverseResolvePlayer;
 
@@ -76,6 +78,7 @@ public class IpcManager : IDisposable
 
     private Configuration _configuration;
     private string backupBase64 = "Bh+LCAAAAAAAAArEV9ly2jAU/Rc/Mxkv8pa3hoRAJ6QZoMmzAhfQRNiuJSdDM/n3XsmYeMNl2nr6Joujc+7mY/FujBiHR0gFiyPj0hoYNz8yluwgksbluzGlLBrTaKXWEwm7Ca4cYrr2wBimIBCzplzAwPiSJHxvXMo0Kx7mEs9WdqonDr+bh5WNy4+B8W29rusROySh54WW9Rei+U675hhoi6BveaQnwat4tS8L2mHg95UbFlNUuufapK/m3cGmquWYZl9aIwBZ0fLd3vK6oaloGxA36EvxHpYvrYp+X4pPKROyPUuvL83ZiEUbSFtF3d6G9H+Ijqke1vk2fquczR8Q8MhEnMckFvFmw2HVjnsCmiijLriacX5og4ky3ctbToUAvdR7KluzAR9mQsY79hO05ccr4AfcjC713iPlGS6c40ktiydvIVrltTxAauS51y32SZnGqmPGwDZbWUYo36hihpxGJYRb/31UDbWpQVkq5J53gzAOrmIRZZQd1HHzFxYNY553rIApD6/CbvagUbN6ek7QFl6d0fNPx9dQJy0FYZSPgMosBaurRRUkDuyZSOdsJDkb6Z6N9M5G+l1I/GTR5X5BpYzjLlyOqFfdbOn4cxq/Vcbn1FTcwfo3Q4HI+ZYm7a9gMYo7yvkEzbsrrPtYdM79V/rWdXwaZ3LbWUWWCMnyT9bptwZRjbH1m2KZWHKYom9194Pxem0ar8AV+tr8YGsdowIPaNTlVpwGzeAVr8rKnM8AN5JtluQJZASVTKuGnvssAh9oSncgUVxhjxLfX6cZlyzhrOLC1oXZsOrSGbxki/z2VOTQgs/7sIgjXb4HSJf4n4BuTrCrYb5ju2fKJ5GESDC5rx9rE9HO+AfnlAFfs/U6y+d6pjpiXniBjdfbEO8rtymA+gpfuIHphDb+Xbk6JOqaodpyG5TKgZuUvuPbLglLjJ7pB8SxvE9KojlJK+PRsUucrmmFnhmUOImOm5TCdCzfI77ptxYafaFE52hkOWmHWOp48EnntVf+XxAdXPY47EXhGmTHnYLruFFPkSXNRhCsOfaiTGjnncDCF4xYwC882VK9PtGVa1hSXo82tE1H3eaP3MVGwVw8H+ktPVhqDOqv6pTia4qfH/Wmfnz8AgAA//8=";
+    private List<Tuple<Guid, string>> tempCollectionGuid = new();
 
     public IpcManager(IDalamudPluginInterface pi, DalamudUtil dalamudUtil)
     {
@@ -96,8 +99,8 @@ public class IpcManager : IDisposable
         _penumbraGetGameObjectMetaManipulations = new GetMetaManipulations(pi);
         _penumbraAddTemporaryMod = new AddTemporaryMod(pi);
         _penumbraCreateTemporaryCollection = new CreateTemporaryCollection(pi);
-        //_penumbraRemoveTemporaryCollection = new RemoveTemporaryCollectionByName(pi);
-        _penumbraRemoveTemporaryMod = new Penumbra.Api.IpcSubscribers.Legacy.RemoveTemporaryMod(pi);
+        _penumbraRemoveTemporaryCollection = new DeleteTemporaryCollection(pi);
+        _penumbraRemoveTemporaryMod = new RemoveTemporaryMod(pi);
         _penumbraAssignTemporaryCollection = new AssignTemporaryCollection(pi);
         _penumbraEnabled = new GetEnabledState(pi);
 
@@ -309,7 +312,7 @@ public class IpcManager : IDisposable
         _glamourerApplyAll!.Invoke(customization, obj.ObjectIndex);
     }
 
-    public string GlamourerGetCharacterCustomization(IntPtr character)
+    public string GlamourerGetCharacterCustomization(IntPtr character, string clipBoard)
     {
         object temp = "";
         object tempGameObj = "";
@@ -317,6 +320,21 @@ public class IpcManager : IDisposable
         if (!CheckGlamourerApi()) return string.Empty;
         try
         {
+            if (!clipBoard.IsNullOrEmpty())
+            {
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromBase64String(clipBoard);
+                }
+                catch
+                {
+                    //if your backup string is not valid, you are getting my shitty lala.
+                    bytes = Convert.FromBase64String(backupBase64);
+                }
+
+                return Convert.ToBase64String(bytes);
+            }
             var gameObj = _dalamudUtil.CreateGameObject(character);
             if (gameObj is ICharacter c)
             {
@@ -350,8 +368,8 @@ public class IpcManager : IDisposable
         catch (Exception ex)
         {
             Logger.Error($"Error occurred while getting customizations for {tempGameObj}. GlamourerString = '{temp}', Exception: {ex.Message}");
-            throw;
             return string.Empty;
+            throw;
         }
     }
 
@@ -394,18 +412,27 @@ public class IpcManager : IDisposable
         _penumbraRedraw!.Invoke(objIdx, RedrawType.Redraw);
     }
 
-    public void PenumbraRemoveTemporaryCollection(string characterName)
+    public void PenumbraRemoveTemporaryCollection(ICharacter characterName, int objIdx)
     {
         if (!CheckPenumbraApi()) return;
-        actionQueue.Enqueue(() =>
+        var collName = TempCollectionPrefix + characterName.Name;
+        Logger.Verbose($"{collName}");
+        var collguid = new Guid();
+        Logger.Verbose("Removing temp collection for " + collName);
+        foreach (var coll in tempCollectionGuid)
         {
-            var collName = TempCollectionPrefix + characterName;
-            Logger.Verbose("Removing temp collection for " + collName);
-            var ret = _penumbraRemoveTemporaryMod.Invoke("Snap", collName, 0);
-            Logger.Verbose("RemoveTemporaryMod: " + ret);
-            //var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
-            //Logger.Verbose("RemoveTemporaryCollection: " + ret2);
-        });
+            Logger.Verbose($"{collName}.{coll.Item2}");
+            if(collName == coll.Item2)
+            {
+                collguid = coll.Item1;
+                var ret = _penumbraRemoveTemporaryCollection.Invoke(collguid);
+                Logger.Verbose("RemoveTemporaryCollection: " + ret);
+            }
+        }
+        
+        //var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
+        //Logger.Verbose("RemoveTemporaryCollection: " + ret2);
+       
     }
 
     public string PenumbraResolvePath(string path)
@@ -451,8 +478,10 @@ public class IpcManager : IDisposable
         {
             return;
         }
+        Logger.Verbose("Test");
         var collName = TempCollectionPrefix + character.Name.TextValue;
         var ret = _penumbraCreateTemporaryCollection.Invoke(collName);
+        tempCollectionGuid.Add(Tuple.Create(ret, collName));
         Logger.Verbose("Creating Temp Collection " + collName + ", Success: " + ret);
         var retAssign = _penumbraAssignTemporaryCollection.Invoke(ret, idx.Value, true);
         Logger.Verbose("Assigning Temp Collection " + collName + " to index " + idx.Value);

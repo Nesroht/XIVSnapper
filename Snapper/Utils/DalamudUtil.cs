@@ -10,6 +10,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using GameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
@@ -55,7 +56,10 @@ public class DalamudUtil : IDisposable
 
         return false;
     }
-
+    //private void OnFrameworkUpdate(IFramework framework)
+    //{
+    //    classJobId = _clientState.LocalPlayer!.ClassJob.Value.JobIndex;
+    //}
     public DalamudUtil(IClientState clientState, IObjectTable objectTable, IFramework framework, ICondition condition, IChatGui chatGui)
     {
         _clientState = clientState;
@@ -66,9 +70,14 @@ public class DalamudUtil : IDisposable
         _clientState.Login += OnLogin;
         //_clientState.Logout += OnLogout;
         _framework.Update += FrameworkOnUpdate;
+        Task<byte> obTask = _framework.Run(() =>
+        {
+            return _clientState.LocalPlayer!.ClassJob.Value.JobIndex;
+        });
         if (IsLoggedIn)
         {
-            classJobId = _clientState.LocalPlayer!.ClassJob.Value.JobIndex;
+            
+            classJobId = obTask.Result;
             OnLogin();
         }
     }

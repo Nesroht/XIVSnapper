@@ -11,8 +11,10 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using ImGuiNET;
 using System.Threading.Tasks;
 using static Lumina.Data.Parsing.Layer.LayerCommon;
+using FFXIVClientStructs.FFXIV.Client.System.Input;
 
 namespace Snapper.Windows
 {
@@ -36,19 +38,20 @@ namespace Snapper.Windows
             ImGui.PopStyleColor();
             ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
             ImGui.Text("Glamourer API currently does not allow you to get their Glamourer design automatically like before when synced with mare.");
-            ImGui.Text("As a temporary workaround, copy their Glamourer design to clipboard and edit the file it creates.");
+            ImGui.Text("As a temporary workaround, copy their design to clipboard then click the save snapshot button");
             ImGui.PopStyleColor();
             ImGui.Text("Save snapshot of player ");
             ImGui.SameLine();
             ImGui.PushFont(UiBuilder.IconFont);
+            var clipBoard = ImGui.GetClipboardText();
             try
             {
                 string saveIcon = FontAwesomeIcon.Save.ToIconString();
                 if (ImGui.Button(saveIcon))
                 {
                     //save snapshot
-                    if (player != null)
-                        Plugin.SnapshotManager.SaveSnapshot(player);
+                    if (player != null && clipBoard != null)
+                        Plugin.SnapshotManager.SaveSnapshot(player, clipBoard);
                 }
             }
             finally
@@ -72,7 +75,7 @@ namespace Snapper.Windows
                 if(ImGui.Button(addIcon))
                 {
                     if (player != null)
-                        Plugin.SnapshotManager.AppendSnapshot(player);
+                        Plugin.SnapshotManager.AppendSnapshot(player, clipBoard);
                 }
             }
             finally

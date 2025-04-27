@@ -14,37 +14,39 @@ using Snapper.Utils;
 using System.Threading;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Penumbra.String;
+using ImGuiNET;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using System.IO;
 using System.Text.Json;
 using Snapper.Interop;
 using Dalamud.Utility;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
 namespace Snapper.Managers
 {
     public class SnapshotManager
     {
         private Plugin Plugin;
-        private List<ICharacter> tempCollections = new();
-
+        private List<Tuple<ICharacter, int>> tempCollections = new();
         public SnapshotManager(Plugin plugin)
         {
 
             this.Plugin = plugin;
         }
-
         public void RevertAllSnapshots()
         {
-            foreach(var character in tempCollections)
+            Logger.Verbose($"{tempCollections.Count}");
+            foreach (var character in tempCollections)
             {
-                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Name.TextValue);
-                Plugin.IpcManager.GlamourerRevertCharacterCustomization(character);
-                Plugin.IpcManager.CustomizePlusRevert(character.Address);
+                Logger.Verbose($"{character.Item1} + {character.Item2}");
+                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Item1, character.Item2);
+                Plugin.IpcManager.GlamourerRevertCharacterCustomization(character.Item1);
+                Plugin.IpcManager.CustomizePlusRevert(character.Item1.Address);
             }
             tempCollections.Clear();
         }
 
-        public bool AppendSnapshot(ICharacter character)
+        public bool AppendSnapshot(ICharacter character, string clipBoard)
         {
             var charaName = character.Name.TextValue;
             var path = Path.Combine(Plugin.Configuration.WorkingDirectory, charaName);
@@ -64,7 +66,7 @@ namespace Snapper.Managers
             if (!Directory.Exists(path))
             {
                 //no existing snapshot for character, just use save mode
-                this.SaveSnapshot(character);
+                this.SaveSnapshot(character, clipBoard);
             }
 
             //Merge file replacements
@@ -111,7 +113,7 @@ namespace Snapper.Managers
             return true;
         }
 
-        public bool SaveSnapshot(ICharacter character)
+        public bool SaveSnapshot(ICharacter character, string clipBoard)
         {
             var charaName = character.Name.TextValue;
             var path = Path.Combine(Plugin.Configuration.WorkingDirectory,charaName);
@@ -125,7 +127,7 @@ namespace Snapper.Managers
             Directory.CreateDirectory(path);
 
             //Get glamourer string
-            snapshotInfo.GlamourerString = Plugin.IpcManager.GlamourerGetCharacterCustomization(character.Address);
+            snapshotInfo.GlamourerString = Plugin.IpcManager.GlamourerGetCharacterCustomization(character.Address, clipBoard);
             Logger.Debug($"Got glamourer string {snapshotInfo.GlamourerString}");
 
             //Save all file replacements
@@ -197,12 +199,14 @@ namespace Snapper.Managers
                 }
             }
             Logger.Debug($"Applied {moddedPaths.Count} replacements");
-
-            Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo.Name.TextValue);
+            Logger.Info($"Applied {moddedPaths.Count} replacements");
+            Logger.Info($"Removing {characterApplyTo.Name.TextValue}");
+            Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo, objIdx);
             Plugin.IpcManager.PenumbraSetTemporaryMods(characterApplyTo, objIdx, moddedPaths, snapshotInfo.ManipulationString);
-            if (!tempCollections.Contains(characterApplyTo))
+            if (!tempCollections.Contains(Tuple.Create(characterApplyTo, objIdx)))
             {
-                tempCollections.Add(characterApplyTo);
+                Logger.Info($"Adding to tempcoll {objIdx}");
+                tempCollections.Add(Tuple.Create(characterApplyTo, objIdx));
             }
 
             //Apply Customize+ if it exists and C+ is installed

@@ -34,5 +34,5 @@ public unsafe struct HumanExt
 public unsafe struct CharaExt
 {
     [FieldOffset(0x0)] public Character Character;
-    [FieldOffset(0x650)] public Character* Mount;
+    [FieldOffset(0x650)] public MountContainer Mount;
 }

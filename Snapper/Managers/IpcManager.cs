@@ -22,6 +22,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Dalamud.Utility;
 using static Dalamud.Interface.Utility.Raii.ImRaii;
 using FFXIVClientStructs.FFXIV.Client.System.Input;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
 namespace Snapper.Managers;
 
@@ -65,11 +66,11 @@ public class IpcManager : IDisposable
     private readonly AssignTemporaryCollection _penumbraAssignTemporaryCollection;
     private readonly ReverseResolvePlayerPath _reverseResolvePlayer;
 
-    private readonly ICallGateSubscriber<string> _customizePlusApiVersion;
-    private readonly ICallGateSubscriber<string> _customizePlusBranch;
+    private readonly ICallGateSubscriber<(int Breaking, int Feature)> _customizePlusApiVersion;
     private readonly ICallGateSubscriber<string, string> _customizePlusGetBodyScale;
-    private readonly ICallGateSubscriber<ICharacter?, string> _customizePlusGetBodyScaleFromCharacter; 
-    private readonly ICallGateSubscriber<string, ICharacter?, object> _customizePlusSetBodyScaleToCharacter;
+    private readonly ICallGateSubscriber<ushort, (int errorCode, Guid? result)> _getActiveProfileIdOnCharacterSubscriber; 
+    private readonly ICallGateSubscriber<Guid, (int errorCode, string? result)> _getProfileByUniqueIdSubscriber;
+    private readonly ICallGateSubscriber<(ushort gameObjectIndex, string profileJson), (int errorCode, string? result)> _setTempProfileByUniqueId;
     private readonly ICallGateSubscriber<ICharacter?, object> _customizePlusRevert;
     private readonly ICallGateSubscriber<string?, object> _customizePlusOnScaleUpdate;
 
@@ -115,12 +116,12 @@ public class IpcManager : IDisposable
         _glamourerRevertCustomization = new RevertState(pi);
 
 
-        _customizePlusApiVersion = pi.GetIpcSubscriber<string>("CustomizePlus.GetApiVersion");
-        _customizePlusBranch = pi.GetIpcSubscriber<string>("CustomizePlus.GetBranch");
+        _customizePlusApiVersion = pi.GetIpcSubscriber<(int Breaking, int Feature)>("CustomizePlus.General.GetApiVersion");
         _customizePlusGetBodyScale = pi.GetIpcSubscriber<string, string>("CustomizePlus.GetTemporaryScale");
-        _customizePlusGetBodyScaleFromCharacter = pi.GetIpcSubscriber<ICharacter?, string>("CustomizePlus.GetBodyScaleFromCharacter");
+        _getActiveProfileIdOnCharacterSubscriber = pi.GetIpcSubscriber<ushort, (int errorCode, Guid? result)>("CustomizePlus.Profile.GetActiveProfileIdOnCharacter");
         _customizePlusRevert = pi.GetIpcSubscriber<ICharacter?, object>("CustomizePlus.RevertCharacter");
-        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<string, ICharacter?, object>("CustomizePlus.SetBodyScaleToCharacter");
+        _getProfileByUniqueIdSubscriber = pi.GetIpcSubscriber<Guid, (int errorCode, string? result)>("CustomizePlus.Profile.GetByUniqueId");
+        _setTempProfileByUniqueId = pi.GetIpcSubscriber<(ushort gameObjectIndex, string profileJson), (int errorCode, string? result)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
         _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<string?, object>("CustomizePlus.OnScaleUpdate");
 
         _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
@@ -207,9 +208,10 @@ public class IpcManager : IDisposable
 
     public bool CheckCustomizePlusApi()
     {
+        Logger.Verbose($"C+ Api V: {_customizePlusApiVersion.InvokeFunc()}");
         try
         {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal) && string.Equals(_customizePlusBranch.InvokeFunc(), "eqbot", StringComparison.Ordinal);
+            return _customizePlusApiVersion.InvokeFunc().Breaking == 6;
         }
         catch
         {
@@ -220,7 +222,7 @@ public class IpcManager : IDisposable
     {
         try
         {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal);
+            return _customizePlusApiVersion.InvokeFunc().Breaking == 6;
         }
         catch
         {
@@ -260,7 +262,9 @@ public class IpcManager : IDisposable
     public string GetCustomizePlusScale()
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(_dalamudUtil.PlayerName);
+        var res = _getActiveProfileIdOnCharacterSubscriber.InvokeFunc(((ushort)_dalamudUtil.PlayerCharacter.GameObjectId)).result;
+        if (!res.HasValue) return string.Empty;
+        var scale = _getProfileByUniqueIdSubscriber.InvokeFunc(res.Value).result;
         if (string.IsNullOrEmpty(scale)) return string.Empty;
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
     }
@@ -268,7 +272,10 @@ public class IpcManager : IDisposable
     public string GetCustomizePlusScaleFromCharacter(ICharacter character)
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(character.Name.ToString());
+        var res = _getActiveProfileIdOnCharacterSubscriber.InvokeFunc(character.ObjectIndex).result;
+        if (!res.HasValue) return string.Empty;
+        var scale = _getProfileByUniqueIdSubscriber.InvokeFunc(res.Value).result;
+        Logger.Verbose($"Customize+ {character.Name}: {scale}");
         if (string.IsNullOrEmpty(scale))
         {
             Logger.Debug("C+ returned null");
@@ -286,7 +293,7 @@ public class IpcManager : IDisposable
             if (gameObj is ICharacter c)
             {
                 Logger.Verbose("CustomizePlus applying for " + c.Address.ToString("X"));
-                _customizePlusSetBodyScaleToCharacter!.InvokeAction(scale, c);
+                _setTempProfileByUniqueId!.InvokeAction((((ushort)gameObj.GameObjectId), scale));
             }
         });
     }

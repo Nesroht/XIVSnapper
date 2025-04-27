@@ -112,7 +112,11 @@ namespace Snapper.Managers
 
             return true;
         }
-
+        public string RemoveInvalidChars(string filename)
+        {
+            Logger.Verbose($"{Path.GetInvalidPathChars()}");
+            return string.Concat(filename.Split(Path.GetInvalidPathChars()));
+        }
         public bool SaveSnapshot(ICharacter character, string clipBoard)
         {
             var charaName = character.Name.TextValue;
@@ -147,18 +151,19 @@ namespace Snapper.Managers
                 FileInfo replacementFile = new FileInfo(replacement.ResolvedPath);
                 FileInfo fileToCreate = new FileInfo(Path.Combine(path, replacement.GamePaths[0]));
                 fileToCreate.Directory.Create();
-                replacementFile.CopyTo(fileToCreate.FullName);
+                replacementFile.CopyTo(RemoveInvalidChars(fileToCreate.FullName));
                 snapshotInfo.FileReplacements.Add(replacement.GamePaths[0], replacement.GamePaths);
             }
 
             snapshotInfo.ManipulationString = Plugin.IpcManager.PenumbraGetGameObjectMetaManipulations(character.ObjectIndex);
 
             //Get customize+ data, if applicable
+            Logger.Verbose($"{Plugin.IpcManager.CheckCustomizePlusApi()}");
             if (Plugin.IpcManager.CheckCustomizePlusApi())
             {
                 Logger.Debug("C+ api loaded");
                 var data = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(character);
-                //Logger.Info(Plugin.DalamudUtil.PlayerName);
+                Logger.Info(Plugin.DalamudUtil.PlayerName);
                 //Logger.Info(character.Name.TextValue);
                 //Logger.Info($"Cust+: {data}");
                 if (!data.IsNullOrEmpty())
@@ -210,9 +215,11 @@ namespace Snapper.Managers
             }
 
             //Apply Customize+ if it exists and C+ is installed
+            Logger.Verbose($"{Plugin.IpcManager.CheckCustomizePlusApi()}");
             if (Plugin.IpcManager.CheckCustomizePlusApi())
             {
-                if(File.Exists(Path.Combine(path, "customizePlus.json")))
+                Logger.Debug("C+ api loaded");
+                if (File.Exists(Path.Combine(path, "customizePlus.json")))
                 {
                     string custPlusData = File.ReadAllText(Path.Combine(path, "customizePlus.json"));
                     Plugin.IpcManager.CustomizePlusSetBodyScale(characterApplyTo.Address, custPlusData);

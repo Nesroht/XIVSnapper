@@ -112,9 +112,10 @@ namespace Snapper.Managers
 
             return true;
         }
+        //Not Necessary, but we leave it there anyway. Mare pulls will sometimes need to be copied twice due to a weird symbol in names on the first try
         public string RemoveInvalidChars(string filename)
         {
-            Logger.Verbose($"{Path.GetInvalidPathChars()}");
+            //Logger.Verbose($"{Path.GetInvalidPathChars()}");
             return string.Concat(filename.Split(Path.GetInvalidPathChars()));
         }
         public bool SaveSnapshot(ICharacter character, string clipBoard)

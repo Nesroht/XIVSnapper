@@ -202,16 +202,18 @@ public class IpcManager : IDisposable
         }
     }
 
+    //This doesnt work atm, looking for a fix
     public bool CheckCustomizePlusApi()
     {
-        try
+        return false;
+        /*try
         {
             return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal) && string.Equals(_customizePlusBranch.InvokeFunc(), "eqbot", StringComparison.Ordinal);
         }
         catch
         {
             return false;
-        }
+        }*/
     }
     public bool CheckCustomizePlusBranch()
     {

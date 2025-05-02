@@ -20,9 +20,6 @@ using Glamourer.Api.IpcSubscribers;
 using Glamourer.Api.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Dalamud.Utility;
-using static Dalamud.Interface.Utility.Raii.ImRaii;
-using FFXIVClientStructs.FFXIV.Client.System.Input;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
 namespace Snapper.Managers;
 
@@ -61,16 +58,16 @@ public class IpcManager : IDisposable
     private readonly GetMetaManipulations _penumbraGetGameObjectMetaManipulations;
     private readonly AddTemporaryMod _penumbraAddTemporaryMod;
     private readonly CreateTemporaryCollection _penumbraCreateTemporaryCollection;
-    private readonly DeleteTemporaryCollection _penumbraRemoveTemporaryCollection;
-    private readonly RemoveTemporaryMod _penumbraRemoveTemporaryMod;
+    //private readonly RemoveTemporaryCollection _penumbraRemoveTemporaryCollection;
+    private readonly Penumbra.Api.IpcSubscribers.Legacy.RemoveTemporaryMod _penumbraRemoveTemporaryMod;
     private readonly AssignTemporaryCollection _penumbraAssignTemporaryCollection;
     private readonly ReverseResolvePlayerPath _reverseResolvePlayer;
 
-    private readonly ICallGateSubscriber<(int Breaking, int Feature)> _customizePlusApiVersion;
+    private readonly ICallGateSubscriber<string> _customizePlusApiVersion;
+    private readonly ICallGateSubscriber<string> _customizePlusBranch;
     private readonly ICallGateSubscriber<string, string> _customizePlusGetBodyScale;
-    private readonly ICallGateSubscriber<ushort, (int errorCode, Guid? result)> _getActiveProfileIdOnCharacterSubscriber; 
-    private readonly ICallGateSubscriber<Guid, (int errorCode, string? result)> _getProfileByUniqueIdSubscriber;
-    private readonly ICallGateSubscriber<(ushort gameObjectIndex, string profileJson), (int errorCode, string? result)> _setTempProfileByUniqueId;
+    private readonly ICallGateSubscriber<ICharacter?, string> _customizePlusGetBodyScaleFromCharacter;
+    private readonly ICallGateSubscriber<string, ICharacter?, object> _customizePlusSetBodyScaleToCharacter;
     private readonly ICallGateSubscriber<ICharacter?, object> _customizePlusRevert;
     private readonly ICallGateSubscriber<string?, object> _customizePlusOnScaleUpdate;
 
@@ -79,7 +76,6 @@ public class IpcManager : IDisposable
 
     private Configuration _configuration;
     private string backupBase64 = "Bh+LCAAAAAAAAArEV9ly2jAU/Rc/Mxkv8pa3hoRAJ6QZoMmzAhfQRNiuJSdDM/n3XsmYeMNl2nr6Joujc+7mY/FujBiHR0gFiyPj0hoYNz8yluwgksbluzGlLBrTaKXWEwm7Ca4cYrr2wBimIBCzplzAwPiSJHxvXMo0Kx7mEs9WdqonDr+bh5WNy4+B8W29rusROySh54WW9Rei+U675hhoi6BveaQnwat4tS8L2mHg95UbFlNUuufapK/m3cGmquWYZl9aIwBZ0fLd3vK6oaloGxA36EvxHpYvrYp+X4pPKROyPUuvL83ZiEUbSFtF3d6G9H+Ijqke1vk2fquczR8Q8MhEnMckFvFmw2HVjnsCmiijLriacX5og4ky3ctbToUAvdR7KluzAR9mQsY79hO05ccr4AfcjC713iPlGS6c40ktiydvIVrltTxAauS51y32SZnGqmPGwDZbWUYo36hihpxGJYRb/31UDbWpQVkq5J53gzAOrmIRZZQd1HHzFxYNY553rIApD6/CbvagUbN6ek7QFl6d0fNPx9dQJy0FYZSPgMosBaurRRUkDuyZSOdsJDkb6Z6N9M5G+l1I/GTR5X5BpYzjLlyOqFfdbOn4cxq/Vcbn1FTcwfo3Q4HI+ZYm7a9gMYo7yvkEzbsrrPtYdM79V/rWdXwaZ3LbWUWWCMnyT9bptwZRjbH1m2KZWHKYom9194Pxem0ar8AV+tr8YGsdowIPaNTlVpwGzeAVr8rKnM8AN5JtluQJZASVTKuGnvssAh9oSncgUVxhjxLfX6cZlyzhrOLC1oXZsOrSGbxki/z2VOTQgs/7sIgjXb4HSJf4n4BuTrCrYb5ju2fKJ5GESDC5rx9rE9HO+AfnlAFfs/U6y+d6pjpiXniBjdfbEO8rtymA+gpfuIHphDb+Xbk6JOqaodpyG5TKgZuUvuPbLglLjJ7pB8SxvE9KojlJK+PRsUucrmmFnhmUOImOm5TCdCzfI77ptxYafaFE52hkOWmHWOp48EnntVf+XxAdXPY47EXhGmTHnYLruFFPkSXNRhCsOfaiTGjnncDCF4xYwC882VK9PtGVa1hSXo82tE1H3eaP3MVGwVw8H+ktPVhqDOqv6pTia4qfH/Wmfnz8AgAA//8=";
-    private List<Tuple<Guid, string>> tempCollectionGuid = new();
 
     public IpcManager(IDalamudPluginInterface pi, DalamudUtil dalamudUtil)
     {
@@ -100,8 +96,8 @@ public class IpcManager : IDisposable
         _penumbraGetGameObjectMetaManipulations = new GetMetaManipulations(pi);
         _penumbraAddTemporaryMod = new AddTemporaryMod(pi);
         _penumbraCreateTemporaryCollection = new CreateTemporaryCollection(pi);
-        _penumbraRemoveTemporaryCollection = new DeleteTemporaryCollection(pi);
-        _penumbraRemoveTemporaryMod = new RemoveTemporaryMod(pi);
+        //_penumbraRemoveTemporaryCollection = new RemoveTemporaryCollectionByName(pi);
+        _penumbraRemoveTemporaryMod = new Penumbra.Api.IpcSubscribers.Legacy.RemoveTemporaryMod(pi);
         _penumbraAssignTemporaryCollection = new AssignTemporaryCollection(pi);
         _penumbraEnabled = new GetEnabledState(pi);
 
@@ -116,12 +112,12 @@ public class IpcManager : IDisposable
         _glamourerRevertCustomization = new RevertState(pi);
 
 
-        _customizePlusApiVersion = pi.GetIpcSubscriber<(int Breaking, int Feature)>("CustomizePlus.General.GetApiVersion");
+        _customizePlusApiVersion = pi.GetIpcSubscriber<string>("CustomizePlus.GetApiVersion");
+        _customizePlusBranch = pi.GetIpcSubscriber<string>("CustomizePlus.GetBranch");
         _customizePlusGetBodyScale = pi.GetIpcSubscriber<string, string>("CustomizePlus.GetTemporaryScale");
-        _getActiveProfileIdOnCharacterSubscriber = pi.GetIpcSubscriber<ushort, (int errorCode, Guid? result)>("CustomizePlus.Profile.GetActiveProfileIdOnCharacter");
+        _customizePlusGetBodyScaleFromCharacter = pi.GetIpcSubscriber<ICharacter?, string>("CustomizePlus.GetBodyScaleFromCharacter");
         _customizePlusRevert = pi.GetIpcSubscriber<ICharacter?, object>("CustomizePlus.RevertCharacter");
-        _getProfileByUniqueIdSubscriber = pi.GetIpcSubscriber<Guid, (int errorCode, string? result)>("CustomizePlus.Profile.GetByUniqueId");
-        _setTempProfileByUniqueId = pi.GetIpcSubscriber<(ushort gameObjectIndex, string profileJson), (int errorCode, string? result)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
+        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<string, ICharacter?, object>("CustomizePlus.SetBodyScaleToCharacter");
         _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<string?, object>("CustomizePlus.OnScaleUpdate");
 
         _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
@@ -208,10 +204,9 @@ public class IpcManager : IDisposable
 
     public bool CheckCustomizePlusApi()
     {
-        Logger.Verbose($"C+ Api V: {_customizePlusApiVersion.InvokeFunc()}");
         try
         {
-            return _customizePlusApiVersion.InvokeFunc().Breaking == 6;
+            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal) && string.Equals(_customizePlusBranch.InvokeFunc(), "eqbot", StringComparison.Ordinal);
         }
         catch
         {
@@ -222,7 +217,7 @@ public class IpcManager : IDisposable
     {
         try
         {
-            return _customizePlusApiVersion.InvokeFunc().Breaking == 6;
+            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal);
         }
         catch
         {
@@ -262,9 +257,7 @@ public class IpcManager : IDisposable
     public string GetCustomizePlusScale()
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var res = _getActiveProfileIdOnCharacterSubscriber.InvokeFunc(((ushort)_dalamudUtil.PlayerCharacter.GameObjectId)).result;
-        if (!res.HasValue) return string.Empty;
-        var scale = _getProfileByUniqueIdSubscriber.InvokeFunc(res.Value).result;
+        var scale = _customizePlusGetBodyScale.InvokeFunc(_dalamudUtil.PlayerName);
         if (string.IsNullOrEmpty(scale)) return string.Empty;
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
     }
@@ -272,11 +265,7 @@ public class IpcManager : IDisposable
     public string GetCustomizePlusScaleFromCharacter(ICharacter character)
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var res = _getActiveProfileIdOnCharacterSubscriber.InvokeFunc(character.ObjectIndex).result;
-        Logger.Verbose($"Customize+ {character.Name}: {res}");
-        if (!res.HasValue) return string.Empty;
-        var scale = _getProfileByUniqueIdSubscriber.InvokeFunc(res.Value).result;
-        Logger.Verbose($"Customize+ {character.Name}: {scale}");
+        var scale = _customizePlusGetBodyScale.InvokeFunc(character.Name.ToString());
         if (string.IsNullOrEmpty(scale))
         {
             Logger.Debug("C+ returned null");
@@ -294,7 +283,7 @@ public class IpcManager : IDisposable
             if (gameObj is ICharacter c)
             {
                 Logger.Verbose("CustomizePlus applying for " + c.Address.ToString("X"));
-                _setTempProfileByUniqueId!.InvokeAction((((ushort)gameObj.GameObjectId), scale));
+                _customizePlusSetBodyScaleToCharacter!.InvokeAction(scale, c);
             }
         });
     }
@@ -320,71 +309,73 @@ public class IpcManager : IDisposable
         _glamourerApplyAll!.Invoke(customization, obj.ObjectIndex);
     }
 
-    public string GlamourerGetCharacterCustomization(IntPtr character, string clipBoard)
+    public string GlamourerGetCharacterCustomization(IntPtr character)
     {
-        object temp = "";
-        object tempGameObj = "";
-        Logger.Debug("Getting character customization");
         if (!CheckGlamourerApi()) return string.Empty;
+
+        const int maxRetries = 3;
+        int attempt = 0;
+        string glamourerString = string.Empty;
+
+        while (attempt < maxRetries)
+        {
+            try
+            {
+                var gameObj = _dalamudUtil.CreateGameObject(character);
+                if (gameObj is ICharacter c)
+                {
+                    Logger.Debug($"Attempting to get customizations for {c.Name} with ObjectIndex {c.ObjectIndex}");
+                    (GlamourerApiEc apiec, string result) = _glamourerGetAllCustomization!.Invoke(c.ObjectIndex);
+
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        glamourerString = result;
+                        break;
+                    }
+                    else
+                    {
+                        Logger.Warn("Glamourer returned an empty customization string, retrying...");
+                    }
+                }
+                else
+                {
+                    Logger.Warn("Game object is not an ICharacter or could not retrieve customization data.");
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Error occurred while getting customizations: {ex.Message}, retrying...");
+            }
+
+            attempt++;
+            System.Threading.Thread.Sleep(100); // Wait before retrying
+        }
+
+        if (string.IsNullOrEmpty(glamourerString))
+        {
+            Logger.Warn("Failed to get a valid glamourer string after multiple attempts, using fallback.");
+            glamourerString = _configuration.FallBackGlamourerString;
+        }
+
+        byte[] bytes;
         try
         {
-            if (!clipBoard.IsNullOrEmpty())
-            {
-                byte[] bytes;
-                try
-                {
-                    bytes = Convert.FromBase64String(clipBoard);
-                }
-                catch
-                {
-                    //if your backup string is not valid, you are getting my shitty lala.
-                    bytes = Convert.FromBase64String(backupBase64);
-                }
-
-                return Convert.ToBase64String(bytes);
-            }
-            var gameObj = _dalamudUtil.CreateGameObject(character);
-            if (gameObj is ICharacter c)
-            {
-                Logger.Debug($"Attempting to get customizations for {c.Name} with ObjectIndex {c.ObjectIndex}");
-                (GlamourerApiEc apiec, string glamourerString) = _glamourerGetAllCustomization!.Invoke(c.ObjectIndex);
-                temp = glamourerString;
-                tempGameObj = c.Name;
-                Logger.Debug($"Got glamourer customizations {glamourerString} for {c.Name}");
-                if (glamourerString.IsNullOrEmpty())
-                {
-                    glamourerString = _configuration.FallBackGlamourerString;
-                }
-
-                byte[] bytes;
-
-                try
-                {
-                    bytes = Convert.FromBase64String(glamourerString);
-                }
-                catch
-                {
-                    //if your backup string is not valid, you are getting my shitty lala.
-                    bytes = Convert.FromBase64String(backupBase64);
-                }
-                
-                return Convert.ToBase64String(bytes);
-            }
-            Logger.Warn("Game object is not an ICharacter or could not retrieve customization data.");
-            return string.Empty;
+            bytes = Convert.FromBase64String(glamourerString);
         }
-        catch (Exception ex)
+        catch
         {
-            Logger.Error($"Error occurred while getting customizations for {tempGameObj}. GlamourerString = '{temp}', Exception: {ex.Message}");
-            return string.Empty;
-            throw;
+            Logger.Warn("Invalid base64 string, using backup.");
+            bytes = Convert.FromBase64String(backupBase64);
         }
+
+        return Convert.ToBase64String(bytes);
     }
 
     public void GlamourerRevertCharacterCustomization(IGameObject character)
     {
         if (!CheckGlamourerApi()) return;
-        if(character is ICharacter c)
+        if (character is ICharacter c)
         {
             actionQueue.Enqueue(() => _glamourerRevertCustomization!.Invoke(c.ObjectIndex));
         }
@@ -420,27 +411,18 @@ public class IpcManager : IDisposable
         _penumbraRedraw!.Invoke(objIdx, RedrawType.Redraw);
     }
 
-    public void PenumbraRemoveTemporaryCollection(ICharacter characterName, int objIdx)
+    public void PenumbraRemoveTemporaryCollection(string characterName)
     {
         if (!CheckPenumbraApi()) return;
-        var collName = TempCollectionPrefix + characterName.Name;
-        Logger.Verbose($"{collName}");
-        var collguid = new Guid();
-        Logger.Verbose("Removing temp collection for " + collName);
-        foreach (var coll in tempCollectionGuid)
+        actionQueue.Enqueue(() =>
         {
-            Logger.Verbose($"{collName}.{coll.Item2}");
-            if(collName == coll.Item2)
-            {
-                collguid = coll.Item1;
-                var ret = _penumbraRemoveTemporaryCollection.Invoke(collguid);
-                Logger.Verbose("RemoveTemporaryCollection: " + ret);
-            }
-        }
-        
-        //var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
-        //Logger.Verbose("RemoveTemporaryCollection: " + ret2);
-       
+            var collName = TempCollectionPrefix + characterName;
+            Logger.Verbose("Removing temp collection for " + collName);
+            var ret = _penumbraRemoveTemporaryMod.Invoke("Snap", collName, 0);
+            Logger.Verbose("RemoveTemporaryMod: " + ret);
+            //var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
+            //Logger.Verbose("RemoveTemporaryCollection: " + ret2);
+        });
     }
 
     public string PenumbraResolvePath(string path)
@@ -486,10 +468,8 @@ public class IpcManager : IDisposable
         {
             return;
         }
-        Logger.Verbose("Test");
         var collName = TempCollectionPrefix + character.Name.TextValue;
         var ret = _penumbraCreateTemporaryCollection.Invoke(collName);
-        tempCollectionGuid.Add(Tuple.Create(ret, collName));
         Logger.Verbose("Creating Temp Collection " + collName + ", Success: " + ret);
         var retAssign = _penumbraAssignTemporaryCollection.Invoke(ret, idx.Value, true);
         Logger.Verbose("Assigning Temp Collection " + collName + " to index " + idx.Value);

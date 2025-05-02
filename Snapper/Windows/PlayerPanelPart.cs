@@ -51,7 +51,7 @@ namespace Snapper.Windows
                 {
                     //save snapshot
                     if (player != null && clipBoard != null)
-                        Plugin.SnapshotManager.SaveSnapshot(player, clipBoard);
+                        Plugin.SnapshotManager.SaveSnapshot(player);
                 }
             }
             finally
@@ -75,7 +75,7 @@ namespace Snapper.Windows
                 if(ImGui.Button(addIcon))
                 {
                     if (player != null)
-                        Plugin.SnapshotManager.AppendSnapshot(player, clipBoard);
+                        Plugin.SnapshotManager.AppendSnapshot(player);
                 }
             }
             finally

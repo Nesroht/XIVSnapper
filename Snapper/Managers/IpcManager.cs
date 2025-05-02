@@ -273,6 +273,7 @@ public class IpcManager : IDisposable
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
         var res = _getActiveProfileIdOnCharacterSubscriber.InvokeFunc(character.ObjectIndex).result;
+        Logger.Verbose($"Customize+ {character.Name}: {res}");
         if (!res.HasValue) return string.Empty;
         var scale = _getProfileByUniqueIdSubscriber.InvokeFunc(res.Value).result;
         Logger.Verbose($"Customize+ {character.Name}: {scale}");
